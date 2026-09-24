@@ -1,5 +1,5 @@
 import { GAME } from '../config';
-import { activeProjects, boardFull, dueRoundIfWon, lastPayingRound, maxBid, minBid, remainingWork } from '../game/engine';
+import { activeProjects, boardFull, dueRoundIfWon, inGame, lastPayingRound, maxBid, minBid, remainingWork } from '../game/engine';
 import type { GameState } from '../game/types';
 import { chooseBid, estimateTender } from './planner';
 import type { AiView } from './types';
@@ -11,7 +11,7 @@ import type { AiView } from './types';
 export function buildView(game: GameState, playerId: string): AiView {
   if (game.market.length === 0) throw new Error('No tenders to bid on');
   const me = game.players.find((p) => p.id === playerId)!;
-  const opps = game.players.filter((p) => p.id !== playerId);
+  const opps = game.players.filter((p) => p.id !== playerId && inGame(p)); // bankrupt players are out
   const nameOf = (id: string | null) => game.players.find((p) => p.id === id)?.name ?? '';
   const suggestion = chooseBid(game, playerId);
 

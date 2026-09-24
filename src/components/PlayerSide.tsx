@@ -77,27 +77,30 @@ export function PlayerSide(props: Props) {
         <div className="plate">
           <div className="plate-name">{p.name}</div>
           <Coin amount={p.money} big />
+          {p.bankruptRound !== null && <div className="out-note">Bankrupt in round {p.bankruptRound}: out of the game</div>}
           <div className="crew-box">
             <div className="crew-row">
               <span>Crew</span>
               <b>{p.workers}</b>
             </div>
             <div className="crew-row">
-              <span>Freelancers ({GAME.freelancerSalary}/rd each)</span>
+              <span title={`Extra workers, paid ${GAME.freelancerSalary} each per round (your crew: ${p.salaryPerWorker}). Up to ${GAME.maxFreelancers} at a time.`}>
+                Freelancers <small className="muted">({GAME.freelancerSalary} each per round, max {GAME.maxFreelancers})</small>
+              </span>
               <span className="row gap-sm">
-                <button className="icon" onClick={props.onRelease} disabled={p.hiredWorkers === 0}>
+                <button className="icon" onClick={props.onRelease} disabled={p.hiredWorkers === 0 || p.bankruptRound !== null}>
                   −
                 </button>
-                <b>
-                  {p.hiredWorkers}/{GAME.maxFreelancers}
-                </b>
-                <button className="icon" onClick={props.onHire} disabled={p.hiredWorkers >= GAME.maxFreelancers}>
+                <b>{p.hiredWorkers}</b>
+                <button className="icon" onClick={props.onHire} disabled={p.hiredWorkers >= GAME.maxFreelancers || p.bankruptRound !== null}>
                   +
                 </button>
               </span>
             </div>
           </div>
-          <div className="plate-sub">{wagesDue(game, p) > 0 ? `wages −${wagesDue(game, p)} per round` : "shop closed: no wages"}</div>
+          <div className="plate-sub">
+            {p.bankruptRound !== null ? 'no wages' : wagesDue(game, p) > 0 ? `wages −${wagesDue(game, p)} per round` : 'shop closed: no wages'}
+          </div>
         </div>
 
         <div className="pool">
@@ -130,15 +133,18 @@ export function OpponentStrip({
   ai?: { thinking: boolean };
 }) {
   const projects = activeProjects(p).length;
+  const out = p.bankruptRound !== null;
   return (
-    <section className="opponent" style={{ '--pc': color } as CSSProperties}>
+    <section className={`opponent ${out ? 'out' : ''}`} style={{ '--pc': color } as CSSProperties}>
       <span className="opp-name">
         {p.name}
         {ai && <span className="ai-badge">{ai.thinking ? 'AI · thinking…' : 'AI'}</span>}
       </span>
       <Coin amount={p.money} />
       <span className="opp-facts">
-        {p.workers} workers · wages −{payroll(p)}/rd · {projects} project{projects === 1 ? '' : 's'} on board
+        {out
+          ? `Bankrupt in round ${p.bankruptRound}: out of the game`
+          : `${p.workers} workers · wages −${payroll(p)}/rd · ${projects} project${projects === 1 ? '' : 's'} on board`}
       </span>
       {onSwitch && (
         <button className="opp-switch" onClick={onSwitch} title="Pass the device: show this player's board at the bottom">

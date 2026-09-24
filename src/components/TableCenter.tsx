@@ -132,7 +132,7 @@ export function TableCenter({ game, actions, aiNotes = [] }: { game: GameState; 
               {game.lastAuctions.length === 0 && <p className="stage-note">Nobody bid this round.</p>}
             </div>
             {game.players
-              .filter((p) => !game.lastAuctions.some((a) => a.bids.some((b) => b.playerId === p.id)))
+              .filter((p) => p.bankruptRound === null && !game.lastAuctions.some((a) => a.bids.some((b) => b.playerId === p.id)))
               .map((p) => (
                 <p key={p.id} className="stage-note">
                   {p.name} passed.
@@ -164,6 +164,7 @@ export function TableCenter({ game, actions, aiNotes = [] }: { game: GameState; 
         return (
           <div className="wages">
             {game.players.map((p, i) => {
+              if (p.bankruptRound !== null) return null;
               const paid = -(game.roundReport.find((x) => x.playerId === p.id)?.wagesPaid ?? 0);
               return (
                 <div key={p.id} className="wage-chip" style={{ borderColor: PLAYER_COLORS[i] }}>

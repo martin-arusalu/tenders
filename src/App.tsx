@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { fetchAiStatus, loadApiKey, openAiAdvisor, remoteAdvisor, rulesAdvisor, saveApiKey, type AiStatus } from './ai/advisors';
 import { useAiOpponents } from './ai/useAiOpponents';
+import { playOut } from './ai/selfPlay';
 import * as E from './game/engine';
 import type { GameState } from './game/types';
 import { BiddingOverlay, CompletionModal, GameOverOverlay } from './components/Overlays';
@@ -180,6 +181,16 @@ export default function App() {
           ),
         )}
       </div>
+      {aiIds.length > 0 && game.players[seat].bankruptRound !== null && game.phase !== 'gameOver' && (
+        <div className="out-banner">
+          <span>
+            <b>You're bankrupt</b> and out of the game. The AIs play on until one is left or the tenders run out.
+          </span>
+          <button className="primary" onClick={() => setGame(playOut(game))} title="Plays the rest instantly with the built-in rules (no OpenAI calls)">
+            Skip to the end
+          </button>
+        </div>
+      )}
       <TableCenter
         game={game}
         aiNotes={ai.lastDecisions}

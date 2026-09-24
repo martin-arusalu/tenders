@@ -315,6 +315,29 @@ describe('full 3-player scenario', () => {
     expect(t.players[0].bankruptRound).toBeNull();
   });
 
+  it('with 3 players, a bankrupt player drops out and the others play on', () => {
+    // Round 1: P1 wins the tender, then goes broke.
+    let s = proceedToAllocation(bidAll(createGame(['A', 'B', 'C'], 4), [0, null, null]));
+    s = debugAdjustMoney(resolveRound(s), 'P1', -1000);
+    s = nextRound(s);
+    expect(s.phase).toBe('tenderReveal');
+    expect(s.players[0].bankruptRound).toBe(1);
+    expect(activeProjects(s.players[0])).toHaveLength(0); // unfinished contracts are dropped
+
+    // Round 2: only the two players left bid, and only they pay wages.
+    const before = s.players[0].money;
+    expect(beginBidding(s).bidding!.order).toEqual(['P2', 'P3']);
+    s = bidAll(s, [null, null]);
+    s = resolveRound(proceedToAllocation(s));
+    expect(s.players[0].money).toBe(before);
+    expect(s.roundReport.map((r) => r.playerId)).toEqual(['P2', 'P3']);
+
+    // A second bankruptcy leaves one player standing: game over, the last one out ranks above the first.
+    s = nextRound(debugAdjustMoney(s, 'P3', -1000));
+    expect(s.phase).toBe('gameOver');
+    expect(rankings(s).map((p) => p.id)).toEqual(['P2', 'P3', 'P1']);
+  });
+
   it('never lets allocations exceed the worker count', () => {
     let s = createGame(['A', 'B'], 7);
     s = bidAll(s, [10, null]);

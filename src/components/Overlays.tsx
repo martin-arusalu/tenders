@@ -362,7 +362,7 @@ export function GameOverOverlay({
         <h2>Final results after {game.round} rounds</h2>
         {broke.length > 0 && (
           <p className="warn big-text">
-            {broke.map((p) => p.name).join(' & ')} went bankrupt in round {broke[0].bankruptRound}.
+            {broke.map((p) => `${p.name} went bankrupt in round ${p.bankruptRound}.`).join(' ')}
           </p>
         )}
         <ol className="ranking">

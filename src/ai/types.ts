@@ -58,7 +58,7 @@ export interface AiView {
       lostAfterRound: number;
     }[];
   };
-  /** Everyone else at the table. */
+  /** Everyone else still in the game (bankrupt players are left out). */
   opponents: {
     name: string;
     money: number;

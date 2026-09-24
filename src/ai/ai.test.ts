@@ -4,7 +4,7 @@ import * as E from '../game/engine';
 import type { GameState, Tender } from '../game/types';
 import { chooseBid, estimateTender, planCrew } from './planner';
 import { parseBidDecision } from './prompt';
-import { STRATEGIES, playHeadless } from './selfPlay';
+import { STRATEGIES, playHeadless, playOut } from './selfPlay';
 import { buildView } from './view';
 
 /** A planner job; lost once penalties would eat the payout. */
@@ -163,6 +163,18 @@ describe('three players', () => {
       expect(g.phase).toBe('gameOver');
       expect(g.players).toHaveLength(3);
     }
+  });
+});
+
+describe('playOut (skip to the end)', () => {
+  it('finishes a game from the middle of a round, with a bankrupt player sitting out', () => {
+    let g = E.createGame(['You', 'AI 1', 'AI 2'], 11);
+    g = E.nextRound(E.debugAdjustMoney(E.resolveRound(E.proceedToAllocation(bidFirst(g, [() => null, () => null, () => null]))), 'P1', -1000));
+    expect(g.players[0].bankruptRound).toBe(1);
+    g = E.beginBidding(g); // mid-round, as when the button is pressed during bidding
+    const end = playOut(g, mulberry(1));
+    expect(end.phase).toBe('gameOver');
+    expect(end.auctions.every((a) => a.bids.every((b) => b.playerId !== 'P1'))).toBe(true);
   });
 });
 

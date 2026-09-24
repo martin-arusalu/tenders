@@ -10,6 +10,8 @@ import { buildView } from './view';
  * bidding opens, in parallel with the human's entry); everything else is the planner.
  * One hook drives every AI seat, since whose turn it is to bid is shared between them.
  */
+const isOut = (g: GameState, id: string) => !E.inGame(g.players.find((p) => p.id === id)!);
+
 export function useAiOpponents(
   game: GameState | null,
   act: (fn: (g: GameState) => GameState) => void,
@@ -32,7 +34,8 @@ export function useAiOpponents(
   useEffect(() => {
     if (!game || phase !== 'bidding' || game.bidding?.rebidTenderId) return;
     for (const id of aiIds) {
-      if (E.boardFull(game.players.find((p) => p.id === id)!)) continue; // can't bid: no need to ask
+      const p = game.players.find((x) => x.id === id)!;
+      if (!E.inGame(p) || E.boardFull(p)) continue; // out of the game, or can't bid: no need to ask
       const key = tenderKey;
       if (requested.current[id] === key) continue;
       requested.current[id] = key;
@@ -75,19 +78,19 @@ export function useAiOpponents(
 
   // Placement: size the crew and move the cards. Idempotent, so safe to re-run.
   useEffect(() => {
-    if (phase === 'allocation') for (const id of aiIds) act((g) => playAllocation(g, id));
+    if (phase === 'allocation') for (const id of aiIds) act((g) => (isOut(g, id) ? g : playAllocation(g, id)));
   }, [aiIds, phase, roundKey, act]);
 
   // Collect finished contracts.
   useEffect(() => {
-    if (phase === 'roundSummary') for (const id of aiIds) act((g) => completeReady(g, id));
+    if (phase === 'roundSummary') for (const id of aiIds) act((g) => (isOut(g, id) ? g : completeReady(g, id)));
   }, [aiIds, phase, roundKey, act]);
 
   const current = (id: string) => (decisions[id]?.key === tenderKey ? decisions[id].decision : null);
   /** AIs still waiting on their advisor this round. */
   const thinking = new Set(
     phase === 'bidding' && rebid === 0 && game
-      ? aiIds.filter((id) => !current(id) && !E.boardFull(game.players.find((p) => p.id === id)!))
+      ? aiIds.filter((id) => !current(id) && !isOut(game, id) && !E.boardFull(game.players.find((p) => p.id === id)!))
       : [],
   );
   const revealed = phase === 'bidReveal' || phase === 'allocation' || phase === 'roundSummary';

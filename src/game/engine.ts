@@ -120,17 +120,31 @@ export function wagesDue(s: GameState, p: Player): number {
   return closed ? 0 : payroll(p);
 }
 
+/** Still in the game: not bankrupt. */
+export function inGame(p: Player): boolean {
+  return p.bankruptRound === null;
+}
+
+export function playersInGame(s: GameState): Player[] {
+  return s.players.filter(inGame);
+}
+
 export function assignedWorkers(s: GameState, playerId: string): number {
   return Object.values(s.allocations[playerId] ?? {}).reduce((a, b) => a + b, 0);
 }
 
+/** Over when one player is left standing, or the tenders are gone and every contract is settled. */
 export function isGameFinished(s: GameState): boolean {
-  return noTendersLeft(s) && s.players.every((p) => activeProjects(p).length === 0);
+  const left = playersInGame(s);
+  return left.length <= 1 || (noTendersLeft(s) && left.every((p) => activeProjects(p).length === 0));
 }
 
-/** Solvent players first, then by money. */
+/** Players still in the game by money, then the bankrupt ones: the later someone went out, the higher. */
 export function rankings(s: GameState): Player[] {
-  return [...s.players].sort((a, b) => Number(a.bankruptRound !== null) - Number(b.bankruptRound !== null) || b.money - a.money);
+  return [...s.players].sort(
+    (a, b) =>
+      Number(!inGame(a)) - Number(!inGame(b)) || (b.bankruptRound ?? 0) - (a.bankruptRound ?? 0) || b.money - a.money,
+  );
 }
 
 // ---------- setup ----------
@@ -227,7 +241,7 @@ export const beginBidding = (state: GameState) =>
     if (s.phase !== 'tenderReveal' || s.market.length === 0) return;
     s.phase = 'bidding';
     s.bidding = {
-      order: s.players.map((p) => p.id),
+      order: playersInGame(s).map((p) => p.id),
       index: 0,
       stage: 'handoff',
       bids: [],
@@ -488,7 +502,7 @@ export const hireWorker = (state: GameState, playerId: string) =>
   produce(state, (s) => {
     if (s.phase === 'gameOver') return;
     const p = playerById(s, playerId);
-    if (p.hiredWorkers >= GAME.maxFreelancers) return;
+    if (!inGame(p) || p.hiredWorkers >= GAME.maxFreelancers) return;
     p.hiredWorkers++;
     p.workers++;
     log(s, `${p.name} took on a freelancer (${p.hiredWorkers}/${GAME.maxFreelancers}).`);
@@ -499,7 +513,7 @@ export const releaseWorker = (state: GameState, playerId: string) =>
   produce(state, (s) => {
     if (s.phase === 'gameOver') return;
     const p = playerById(s, playerId);
-    if (p.hiredWorkers <= 0) return;
+    if (!inGame(p) || p.hiredWorkers <= 0) return;
     if (assignedWorkers(s, playerId) >= p.workers) return;
     p.hiredWorkers--;
     p.workers--;
@@ -525,7 +539,7 @@ export const resolveRound = (state: GameState) =>
 function resolveRoundMut(s: GameState) {
   const reports: PlayerRoundReport[] = [];
 
-  for (const p of s.players) {
+  for (const p of playersInGame(s)) {
     const report: PlayerRoundReport = { playerId: p.id, moneyBefore: p.money, moneyAfter: 0, wagesPaid: 0, lines: [] };
     const alloc = s.allocations[p.id] ?? {};
     const idle = p.workers - Object.values(alloc).reduce((a, b) => a + b, 0);
@@ -578,7 +592,7 @@ function resolveRoundMut(s: GameState) {
 
   const paid = reports.map((r) => r.wagesPaid);
   if (new Set(paid).size === 1) log(s, `All players paid ${paid[0]} payroll.`, 'payroll');
-  else s.players.forEach((p, i) => log(s, `${p.name} paid ${paid[i]} payroll.`, 'payroll'));
+  else reports.forEach((r) => log(s, `${playerById(s, r.playerId).name} paid ${r.wagesPaid} payroll.`, 'payroll'));
 
   s.roundReport = reports;
   s.phase = 'roundSummary';
@@ -622,23 +636,22 @@ export const nextRound = (state: GameState) =>
   });
 
 function nextRoundMut(s: GameState) {
+  // Bankrupt: out of the game. Unfinished contracts are dropped; everyone else plays on.
   if (GAME.bankruptBelow !== null) {
-    const broke = s.players.filter((p) => p.money < GAME.bankruptBelow!);
-    if (broke.length > 0) {
-      for (const p of broke) {
-        p.bankruptRound = s.round;
-        log(s, `${p.name} is bankrupt with ${p.money}.`, 'late');
+    for (const p of playersInGame(s).filter((pl) => pl.money < GAME.bankruptBelow!)) {
+      p.bankruptRound = s.round;
+      for (const pr of activeProjects(p)) {
+        pr.status = 'lost';
+        pr.completedRound = s.round;
       }
-      s.phase = 'gameOver';
-      const winner = rankings(s)[0];
-      log(s, broke.length === s.players.length ? 'Everyone went bankrupt. Nobody wins.' : `Game over. ${winner.name} wins with ${winner.money}.`);
-      return;
+      log(s, `${p.name} is bankrupt with ${p.money} and is out of the game.`, 'late');
     }
   }
   if (isGameFinished(s)) {
     s.phase = 'gameOver';
+    const left = playersInGame(s);
     const winner = rankings(s)[0];
-    log(s, `Game over. ${winner.name} wins with ${winner.money}.`);
+    log(s, left.length === 0 ? 'Everyone went bankrupt. Nobody wins.' : `Game over. ${winner.name} wins with ${winner.money}.`);
     return;
   }
   s.round++;
@@ -684,7 +697,7 @@ export const debugAdvanceRound = (state: GameState) =>
     }
     log(s, '[debug] Advancing round automatically.', 'debug');
     if (s.phase === 'tenderReveal' || s.phase === 'bidding') closeMarketMut(s); // everyone passes
-    for (const p of s.players) {
+    for (const p of playersInGame(s)) {
       if (assignedWorkers(s, p.id) === 0) autoAllocateMut(s, p.id);
     }
     s.phase = 'allocation';

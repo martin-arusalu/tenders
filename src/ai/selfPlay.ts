@@ -107,6 +107,56 @@ function mulberry(seed: number) {
   };
 }
 
+type SealedBid = { tenderId: string; amount: number } | null;
+
+/** A seat's sealed bid, checked the way the app does: a full board passes, a price out of range is clamped. */
+function sealedBid(g: GameState, id: string, bid: (g: GameState, id: string) => SealedBid): SealedBid {
+  if (E.boardFull(g.players.find((p) => p.id === id)!)) return null;
+  const b = bid(g, id);
+  const t = b && E.offeredTender(g, b.tenderId);
+  return t ? { tenderId: t.id, amount: E.clampBid(t, b!.amount) } : null;
+}
+
+/**
+ * Moves the game one phase on, with every seat still in the game played automatically:
+ * `bid` gives the sealed bids, the planner does crew, cards, completion and tie-break rebids.
+ * Works from any point, including halfway through the bidding.
+ */
+function advance(g: GameState, bid: (g: GameState, id: string) => SealedBid, works: (id: string) => boolean): GameState {
+  switch (g.phase) {
+    case 'tenderReveal': {
+      const bids = E.playersInGame(g).map((p) => sealedBid(g, p.id, bid));
+      g = E.beginBidding(g);
+      for (const b of bids) g = E.submitBid(E.showBidEntry(g), b);
+      return E.revealBids(g);
+    }
+    case 'bidding':
+      while (g.bidding!.stage !== 'done') {
+        const id = E.currentBidder(g)!.id;
+        const rebidOn = g.bidding!.rebidTenderId;
+        g = E.submitBid(E.showBidEntry(g), rebidOn ? { tenderId: rebidOn, amount: rebidAmount(g, id) } : sealedBid(g, id, bid));
+      }
+      return E.revealBids(g);
+    case 'bidReveal':
+      return E.proceedToAllocation(g);
+    case 'allocation':
+      for (const p of E.playersInGame(g)) if (works(p.id)) g = playAllocation(g, p.id);
+      return E.resolveRound(g);
+    case 'roundSummary':
+      for (const p of E.playersInGame(g)) g = completeReady(g, p.id);
+      return E.nextRound(g);
+    case 'gameOver':
+      return g;
+  }
+}
+
+/** Plays the rest of the game with the rules bot in every seat still in it (the app's "skip to the end"). */
+export function playOut(game: GameState, rng: () => number = Math.random, maxRounds = 500): GameState {
+  let g = game;
+  while (g.phase !== 'gameOver' && g.round <= maxRounds) g = advance(g, (x, id) => chooseBid(x, id, rng), () => true);
+  return g;
+}
+
 /**
  * A whole game with no UI, through the same engine actions the app uses.
  * Crew, card placement, completion and tie-break rebids come from the planner; only the
@@ -119,34 +169,11 @@ export function playHeadless(seed: number, seats: (BidStrategy | Strategy)[], ma
     strategies.map((_, i) => `Seat ${i + 1}`),
     seed,
   );
+  const seat = (id: string) => strategies[g.players.findIndex((p) => p.id === id)];
   const lowestMoney = g.players.map((p) => p.money);
   while (g.phase !== 'gameOver' && g.round <= maxRounds) {
-    if (g.phase === 'tenderReveal') {
-      const bids = g.players.map((p, i) => {
-        if (E.boardFull(p)) return null;
-        const b = strategies[i].bid(g, p.id, rng);
-        const t = b && E.offeredTender(g, b.tenderId);
-        return t ? { tenderId: t.id, amount: E.clampBid(t, b!.amount) } : null;
-      });
-      g = E.beginBidding(g);
-      for (const b of bids) g = E.submitBid(E.showBidEntry(g), b);
-      g = E.revealBids(g);
-      while (g.phase === 'bidding') {
-        while (g.bidding!.stage !== 'done') {
-          const id = E.currentBidder(g)!.id;
-          g = E.submitBid(E.showBidEntry(g), { tenderId: g.bidding!.rebidTenderId!, amount: rebidAmount(g, id) });
-        }
-        g = E.revealBids(g);
-      }
-      g = E.proceedToAllocation(g);
-    }
-    g.players.forEach((p, i) => {
-      if (!strategies[i].lazy) g = playAllocation(g, p.id);
-    });
-    g = E.resolveRound(g);
-    g.players.forEach((p, i) => (lowestMoney[i] = Math.min(lowestMoney[i], p.money)));
-    for (const p of g.players) g = completeReady(g, p.id);
-    g = E.nextRound(g);
+    g = advance(g, (x, id) => seat(id).bid(x, id, rng), (id) => !seat(id).lazy);
+    if (g.phase === 'roundSummary') g.players.forEach((p, i) => (lowestMoney[i] = Math.min(lowestMoney[i], p.money)));
   }
   return { final: g, lowestMoney };
 }

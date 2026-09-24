@@ -15,7 +15,7 @@ Rules:
 - The card's work is only an estimate: the winner rolls a d6 and adds rules.workRollByDie[roll − 1] to it (your listed contracts already show the true remaining work).
 - Each worker does 1 unit of work per round. You have a base crew paid every round no matter what, and may take on freelancers at a higher wage.
 - A contract finished in or before its due round pays the full bid. EACH round late deducts its penalty again. Once penalties would eat the whole payment, the contract is lost: no pay, no further cost (me.contracts[].lostAfterRound).
-- You can hold at most rules.maxActiveProjects contracts at once (a full board can't bid), and money below zero at the end of a round means bankruptcy: you lose immediately.
+- You can hold at most rules.maxActiveProjects contracts at once (a full board can't bid), and money below zero at the end of a round means bankruptcy: you're out of the game and lose. The others play on until one player is left or the tenders and contracts run out.
 - The game ends when all tenders are gone and every contract is finished. Most money wins.
 
 Strategy notes:

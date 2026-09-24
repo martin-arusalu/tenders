@@ -69,7 +69,7 @@ export interface Player {
   salaryPerWorker: number;
   projects: Project[];
   stats: PlayerStats;
-  /** Round this player went bankrupt, which ends the game. */
+  /** Round this player went bankrupt and left the game (their contracts are dropped). null = still playing. */
   bankruptRound: number | null;
 }
 

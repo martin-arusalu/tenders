@@ -5,6 +5,7 @@ import {
   completeProject,
   dueRoundIfWon,
   hireWorker,
+  inGame,
   boardFull,
   clampBid,
   isReady,
@@ -184,7 +185,7 @@ export function chooseBid(game: GameState, playerId: string, rng: () => number =
   if (boardFull(me)) return null;
   const onOffer = game.market.map((o) => o.tender);
   const rivals = game.players
-    .filter((x) => x.id !== playerId && !boardFull(x))
+    .filter((x) => x.id !== playerId && inGame(x) && !boardFull(x))
     .map((x) => ({ id: x.id, wants: bestFit(game, x.id, onOffer)?.id }));
   /** Each rival's recent price per work: we expect about that again, give or take half a unit. */
   const rates = new Map(rivals.map((r) => [r.id, recentRate(game, [r.id])]));

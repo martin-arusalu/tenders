@@ -44,7 +44,7 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <p>
             You run a contracting firm. Win contracts by bidding for them, get the work done on time, and pay your crew.
             When the tenders run out and every contract is finished, <b>the player with the most money wins</b>. Go
-            broke and you lose on the spot.
+            broke and you're out, while the others play on. If only one player is left, they win.
           </p>
         </section>
 
@@ -53,8 +53,10 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <ul>
             <li>
               <b>2 to {maxPlayers} players.</b> In the app you can play against{' '}
-              {AI.maxOpponents === 1 ? 'an AI opponent' : `1 ${AI.maxOpponents === 2 ? 'or' : 'to'} ${AI.maxOpponents} AI opponents`}, or with 2 people
-              passing one device.
+              {AI.maxOpponents === 1
+                ? 'an AI opponent'
+                : `1 ${AI.maxOpponents === 2 ? 'or' : 'to'} ${AI.maxOpponents} AI opponents`}
+              , or with 2 people passing one device.
             </li>
             <li>
               The AI opponents see only what a player in their seat could see: never your secret bid. They bid with
@@ -168,8 +170,12 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <ul>
             <li>One worker does one space of work per round. Workers left unassigned still get paid.</li>
             <li>
-              Take on up to <b>{g.maxFreelancers} freelancers</b> at {g.freelancerSalary} per round each when you're
-              busy, and let them go again when you're not.
+              Short-handed? <b>Take on freelancers</b>: extra workers who cost more than your crew. Each one is paid{' '}
+              <b>{g.freelancerSalary} per round</b> instead of {g.salaryPerWorker}.
+            </li>
+            <li>
+              You can have <b>up to {g.maxFreelancers} freelancers</b> at a time. Take them on or let them go whenever
+              you like (as long as they aren't working on a card), and only pay for the rounds you keep them.
             </li>
           </ul>
         </section>
@@ -192,16 +198,16 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
         </section>
 
         <section>
-          <h3>Getting paid, and going broke</h3>
+          <h3>Getting paid, going broke, and the end</h3>
           <ul>
             <li>
               A contract that reaches the finish line waits for you to press <b>Complete</b>. You're paid then.
             </li>
             {g.bankruptBelow !== null && (
               <li>
-                If your money is <b>below {g.bankruptBelow}</b> at the end of a round, you're <b>bankrupt</b>: you lose
-                and the game ends right away. With {maxPlayers} players, the others are ranked by their money at that
-                point. Pay only comes when a job is finished, so watch your cash while you take on work.
+                If your money is <b>below {g.bankruptBelow}</b> at the end of a round, you're <b>bankrupt</b> and out of
+                the game: your unfinished contracts are dropped, and you stop bidding and paying wages. Everyone else
+                plays on. Pay only comes when a job is finished, so watch your cash while you take on work.
               </li>
             )}
             {g.closeShopWhenDone && (
@@ -210,6 +216,10 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
                 others finish up.
               </li>
             )}
+            <li>
+              <b>The game ends</b> when the tenders run out and every contract is finished, or when only one player is
+              left. Players still in the game rank by money; bankrupt players rank below them, the last one out highest.
+            </li>
           </ul>
         </section>
 
