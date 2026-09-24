@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import { GAME } from '../config';
 import { isGameFinished, pendingFlips } from '../game/engine';
 import type { AuctionResult, GameState } from '../game/types';
 import { DeckPile, PLAYER_COLORS, TenderCard, TenderMini, WorkRollBadge } from './Pieces';
@@ -21,7 +20,7 @@ const STEP_OF: Record<GameState['phase'], number> = {
   gameOver: 3,
 };
 
-/** The AI's comment on its own bid, shown at the reveal. */
+/** An AI's comment on its own bid, shown at the reveal. */
 export interface AiNote {
   playerId: string;
   reasoning: string;
@@ -34,7 +33,7 @@ const TIE_NOTE: Record<NonNullable<AuctionResult['tieBreak']>, string> = {
   random: 'tie that couldn’t go lower: coin flip',
 };
 
-export function TableCenter({ game, actions, aiNote }: { game: GameState; actions: TableActions; aiNote?: AiNote }) {
+export function TableCenter({ game, actions, aiNotes = [] }: { game: GameState; actions: TableActions; aiNotes?: AiNote[] }) {
   const colorOf = (id: string) => PLAYER_COLORS[game.players.findIndex((p) => p.id === id)];
   const nameOf = (id: string) => game.players.find((p) => p.id === id)!.name;
   const step = STEP_OF[game.phase];
@@ -42,7 +41,7 @@ export function TableCenter({ game, actions, aiNote }: { game: GameState; action
   // After the auctions: what will be on the table next round (unclaimed leftovers + new cards, face up).
   const nextRound = biddingOpen || game.phase === 'gameOver' ? [] : [
     ...game.market.map((o) => ({ tender: o.tender, again: true })),
-    ...game.deck.slice(0, Math.max(0, GAME.tendersPerRound - game.market.length)).map((t) => ({ tender: t, again: false })),
+    ...game.deck.slice(0, Math.max(0, game.tendersPerRound - game.market.length)).map((t) => ({ tender: t, again: false })),
   ];
 
   return (
@@ -139,14 +138,16 @@ export function TableCenter({ game, actions, aiNote }: { game: GameState; action
                   {p.name} passed.
                 </p>
               ))}
-            {aiNote?.reasoning && (
-              <p className="ai-note" style={{ borderColor: colorOf(aiNote.playerId) }}>
-                “{aiNote.reasoning}”
-                <small>
-                  {nameOf(aiNote.playerId)} · {aiNote.source === 'rules' ? 'built-in rules' : aiNote.source}
-                </small>
-              </p>
-            )}
+            {aiNotes
+              .filter((n) => n.reasoning)
+              .map((n) => (
+                <p key={n.playerId} className="ai-note" style={{ borderColor: colorOf(n.playerId) }}>
+                  “{n.reasoning}”
+                  <small>
+                    {nameOf(n.playerId)} · {n.source === 'rules' ? 'built-in rules' : n.source}
+                  </small>
+                </p>
+              ))}
           </div>
         );
       case 'allocation':

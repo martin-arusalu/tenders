@@ -162,10 +162,12 @@ export interface GameState {
   players: Player[];
   /** Remaining undrawn tenders for this game, in draw order. */
   deck: Tender[];
-  /** Tenders on the table this round (GAME.tendersPerRound, fewer at the end). Each player bids on at most one. */
+  /** Tenders on the table this round (tendersPerRound, fewer at the end). Each player bids on at most one. */
   market: OfferedTender[];
   tendersDealt: number;
   tendersPerGame: number;
+  /** Set from the player count when the game is created (see engine tendersPerRound). */
+  tendersPerRound: number;
   bidding: BiddingState | null;
   /** Auctions resolved this round. */
   lastAuctions: AuctionResult[];

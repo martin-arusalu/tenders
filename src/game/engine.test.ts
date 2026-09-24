@@ -43,7 +43,7 @@ function withConfig(overrides: Partial<typeof GAME>, fn: () => void) {
 // Most tests here are about one auction at a time, so they run with one tender per round and no
 // carry-over. The two-tender market has its own tests at the bottom.
 const savedConfig = { ...GAME };
-beforeAll(() => Object.assign(GAME, { tendersPerRound: 1, marketStayRounds: 1 }));
+beforeAll(() => Object.assign(GAME, { tendersPerRound: 1, extraTendersPerPlayer: 0, marketStayRounds: 1 }));
 afterAll(() => Object.assign(GAME, savedConfig));
 
 const START = GAME.startingMoney;

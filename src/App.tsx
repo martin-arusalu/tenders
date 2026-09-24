@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { fetchAiStatus, loadApiKey, openAiAdvisor, remoteAdvisor, rulesAdvisor, saveApiKey, type AiStatus } from './ai/advisors';
-import { AI } from './config';
-import { useAiOpponent } from './ai/useAiOpponent';
+import { useAiOpponents } from './ai/useAiOpponents';
 import * as E from './game/engine';
 import type { GameState } from './game/types';
 import { BiddingOverlay, CompletionModal, GameOverOverlay } from './components/Overlays';
@@ -43,7 +42,8 @@ export default function App() {
 
   const [game, setGame] = useState<GameState | null>(null);
   const [names, setNames] = useState<string[] | undefined>();
-  const [vsAi, setVsAi] = useState(true);
+  /** AI opponents across the table; 0 = pass-the-device game for 2. */
+  const [aiCount, setAiCount] = useState(2);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const dragRef = useRef<CardDragStart | null>(null);
   const [flipped, setFlipped] = useState<{ playerId: string; projectId: string } | null>(null);
@@ -51,12 +51,14 @@ export default function App() {
   /** The rulebook opens by itself whenever a game starts, and from the Rules button any time. */
   const [rulesOpen, setRulesOpen] = useState(false);
   const closeRules = useCallback(() => setRulesOpen(false), []);
-  /** Index of the player sitting at the bottom; the other one's board is hidden. */
+  /** Index of the player sitting at the bottom; everyone else's board is hidden. */
   const [seat, setSeat] = useState(0);
 
   const act = useCallback((fn: (g: GameState) => GameState) => setGame((g) => (g ? fn(g) : g)), []);
-  const aiId = vsAi && game ? game.players[AI.seat].id : null;
-  const ai = useAiOpponent(game, act, aiId, advisor);
+  // You sit at seat 0; the AIs take the other seats. Stable per game, since it's an effect dependency.
+  const playerIds = game?.players.map((p) => p.id).join(',') ?? '';
+  const aiIds = useMemo(() => (aiCount > 0 && playerIds ? playerIds.split(',').slice(1) : []), [aiCount, playerIds]);
+  const ai = useAiOpponents(game, act, aiIds, advisor);
 
   // A card is dragged along its row, up to however many spaces its assigned workers allow.
   useEffect(() => {
@@ -93,13 +95,13 @@ export default function App() {
       <main className="app">
         <Setup
           initialNames={names}
-          initialVsAi={vsAi}
+          initialAiCount={aiCount}
           apiKey={apiKey}
           onApiKeyChange={changeApiKey}
           serverStatus={serverStatus}
-          onStart={(n, withAi) => {
+          onStart={(n, ais) => {
             setNames(n);
-            setVsAi(withAi);
+            setAiCount(ais);
             setSeat(0);
             setGame(E.createGame(n));
             setRulesOpen(true);
@@ -165,15 +167,22 @@ export default function App() {
         ☰
       </button>
 
-      <OpponentStrip
-        player={game.players[1 - seat]}
-        color={PLAYER_COLORS[1 - seat]}
-        onSwitch={aiId ? undefined : () => setSeat(1 - seat)}
-        ai={aiId ? { thinking: ai.thinking } : undefined}
-      />
+      <div className="opponents">
+        {game.players.map((p, i) =>
+          i === seat ? null : (
+            <OpponentStrip
+              key={p.id}
+              player={p}
+              color={PLAYER_COLORS[i]}
+              onSwitch={aiIds.length ? undefined : () => setSeat(i)}
+              ai={aiIds.includes(p.id) ? { thinking: ai.thinking.has(p.id) } : undefined}
+            />
+          ),
+        )}
+      </div>
       <TableCenter
         game={game}
-        aiNote={aiId && ai.lastDecision ? { playerId: aiId, ...ai.lastDecision } : undefined}
+        aiNotes={ai.lastDecisions}
         actions={{
           beginBidding: () => act(E.beginBidding),
           proceedToAllocation: () => act(E.proceedToAllocation),
@@ -207,7 +216,7 @@ export default function App() {
       {game.phase === 'bidding' && (
         <BiddingOverlay
           game={game}
-          aiPlayerId={aiId}
+          aiPlayerIds={aiIds}
           actions={{
             showBidEntry: () => act(E.showBidEntry),
             submitBid: (bid) => act((g) => E.submitBid(g, bid)),

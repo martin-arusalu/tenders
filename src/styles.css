@@ -129,7 +129,7 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px 
 /* ---------- opponent strip (board hidden) ---------- */
 .opponent {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 10px 12px 10px 64px; border-radius: 999px;
+  padding: 10px 12px 10px 136px; border-radius: 999px; /* clears the fixed Menu and Rules buttons */
   background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(20px);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 0 40px -18px var(--pc);
 }
@@ -137,6 +137,10 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px 
 .opp-name::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 12px var(--pc); }
 .opp-facts { font-size: 0.85rem; color: var(--muted); }
 .opp-switch { margin-left: auto; }
+/* One strip per opponent, side by side when there's room. Only the first clears the menu buttons. */
+.opponents { display: flex; flex-wrap: wrap; gap: 12px; }
+.opponents > .opponent { flex: 1 1 420px; }
+.opponents > .opponent + .opponent { padding-left: 20px; }
 
 /* ---------- a player's side ---------- */
 .side { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 12px; align-items: stretch; }
@@ -405,7 +409,22 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px 
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
 .overlay-box .tender-card { margin: 16px auto; text-align: left; }
 .bidder-status { background: var(--surface-2); border: 1px solid var(--line); padding: 10px 14px; border-radius: var(--r-sm); margin: 10px 0; font-size: 0.85rem; color: #c3c8d6; }
-.bid-input { width: 150px; font-family: var(--display); font-size: 1.6rem; font-weight: 700; text-align: center; }
+.bid-entry { display: flex; flex-direction: column; gap: 14px; }
+.bid-entry h2, .bid-entry p, .bid-entry .bidder-status { margin: 0; }
+.bid-step { font-size: 1rem; }
+.price-panel {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 16px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line);
+}
+.price-panel.waiting { padding: 22px 16px; border-style: dashed; }
+.stepper { display: flex; align-items: center; gap: 12px; }
+button.big-icon { width: 48px; height: 48px; min-width: 48px; padding: 0; font-size: 1.5rem; }
+.bid-input { width: 130px; font-family: var(--display); font-size: 2rem; font-weight: 700; text-align: center; padding: 8px 10px; }
+.slider { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 2px; }
+.bid-slider { width: 100%; margin: 0; accent-color: var(--accent); }
+.slider-ends { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); }
+.bid-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 12px; }
+@media (max-width: 480px) { .bid-actions { grid-auto-flow: row; } }
 .show-results { position: fixed; bottom: 20px; right: 20px; z-index: 10; }
 
 .flip-box { max-width: 400px; }

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import type { AiStatus } from '../ai/advisors';
 import { checkOpenAiKey } from '../ai/openai';
 import { AI, GAME, TABLE } from '../config';
+import { tendersPerRound } from '../game/engine';
 
-function randomNames(): string[] {
-  return [...TABLE.namePool].sort(() => Math.random() - 0.5).slice(0, 2);
+function randomNames(count: number): string[] {
+  return [...TABLE.namePool].sort(() => Math.random() - 0.5).slice(0, count);
 }
 
 /** The player's own OpenAI key. It stays in this browser and is only sent to OpenAI. */
@@ -87,9 +88,15 @@ function ApiKeyField({
   );
 }
 
+/** Opponent choices: AI count, 0 = two humans sharing the device. */
+const MODES: { ais: number; label: string }[] = [
+  ...Array.from({ length: AI.maxOpponents }, (_, i) => AI.maxOpponents - i).map((n) => ({ ais: n, label: `vs ${n} AI${n > 1 ? 's' : ''}` })),
+  { ais: 0, label: '2 players, one device' },
+];
+
 export function Setup({
   initialNames,
-  initialVsAi,
+  initialAiCount,
   apiKey,
   onApiKeyChange,
   serverStatus,
@@ -97,40 +104,47 @@ export function Setup({
   onShowRules,
 }: {
   initialNames?: string[];
-  initialVsAi: boolean;
+  initialAiCount: number;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
   serverStatus: AiStatus | null;
-  onStart: (names: string[], vsAi: boolean) => void;
+  onStart: (names: string[], aiCount: number) => void;
   onShowRules: () => void;
 }) {
-  const [names, setNames] = useState<string[]>(() => initialNames ?? TABLE.namePool.slice(0, 2));
-  const [vsAi, setVsAi] = useState(initialVsAi);
-  const trimmed = names.map((n, i) => n.trim() || `Player ${i + 1}`);
-  const duplicate = trimmed[0] === trimmed[1];
+  // Enough names for the biggest table; only the first `seats` are used.
+  const [names, setNames] = useState<string[]>(() => {
+    const pool = TABLE.namePool;
+    return [...(initialNames ?? []), ...pool.filter((n) => !initialNames?.includes(n))].slice(0, AI.maxOpponents + 1);
+  });
+  const [aiCount, setAiCount] = useState(initialAiCount);
+  const seats = aiCount > 0 ? aiCount + 1 : 2;
+  const trimmed = names.slice(0, seats).map((n, i) => n.trim() || `Player ${i + 1}`);
+  const duplicate = new Set(trimmed).size < trimmed.length;
+  const labels = ['You (bottom of the table)', ...trimmed.slice(1).map((_, i) =>
+    aiCount > 0 ? `AI opponent${aiCount > 1 ? ` ${i + 1}` : ''}` : 'Opponent (across from you)',
+  )];
 
   return (
     <div className="setup panel">
       <h1>Tenders</h1>
       <p className="muted">
-        A 2-player game about running a contracting firm. Each round {GAME.tendersPerRound} tenders go on the table:
-        pick one, bid in secret (lowest bid wins), then get the work done with your crew of {GAME.startingWorkers}{' '}
-        before the deadline. Wages cost {GAME.startingWorkers * GAME.salaryPerWorker} every round. Start with{' '}
-        {GAME.startingMoney}; most money at the end wins.
+        A game for {seats} players about running a contracting firm. Each round {tendersPerRound(seats)} tenders go on
+        the table: pick one, bid in secret (lowest bid wins), then get the work done with your crew of{' '}
+        {GAME.startingWorkers} before the deadline. Wages cost {GAME.startingWorkers * GAME.salaryPerWorker} every
+        round. Start with {GAME.startingMoney}; most money at the end wins.
       </p>
 
-      <div className="seg" role="radiogroup" aria-label="Opponent">
-        <button role="radio" aria-checked={vsAi} className={vsAi ? 'on' : ''} onClick={() => setVsAi(true)}>
-          vs AI
-        </button>
-        <button role="radio" aria-checked={!vsAi} className={!vsAi ? 'on' : ''} onClick={() => setVsAi(false)}>
-          2 players, one device
-        </button>
+      <div className="seg" role="radiogroup" aria-label="Opponents">
+        {MODES.map((m) => (
+          <button key={m.ais} role="radio" aria-checked={aiCount === m.ais} className={aiCount === m.ais ? 'on' : ''} onClick={() => setAiCount(m.ais)}>
+            {m.label}
+          </button>
+        ))}
       </div>
-      {vsAi && <ApiKeyField apiKey={apiKey} onChange={onApiKeyChange} serverStatus={serverStatus} />}
+      {aiCount > 0 && <ApiKeyField apiKey={apiKey} onChange={onApiKeyChange} serverStatus={serverStatus} />}
 
       <div className="stack">
-        {['You (bottom of the table)', vsAi ? 'AI opponent' : 'Opponent (across from you)'].map((label, i) => (
+        {labels.map((label, i) => (
           <label key={i}>
             <span className="small muted">{label}</span>
             <input
@@ -142,9 +156,9 @@ export function Setup({
         ))}
       </div>
       <div className="row gap" style={{ marginTop: 12 }}>
-        <button onClick={() => setNames(randomNames())}>Random names</button>
+        <button onClick={() => setNames(randomNames(names.length))}>Random names</button>
         <button onClick={onShowRules}>How to play</button>
-        <button className="primary big" disabled={duplicate} onClick={() => onStart(trimmed, vsAi)}>
+        <button className="primary big" disabled={duplicate} onClick={() => onStart(trimmed, aiCount)}>
           Start game
         </button>
       </div>

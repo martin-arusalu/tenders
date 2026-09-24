@@ -135,6 +135,11 @@ export function rankings(s: GameState): Player[] {
 
 // ---------- setup ----------
 
+/** Tenders on the table each round for this many players. */
+export function tendersPerRound(playerCount: number): number {
+  return GAME.tendersPerRound + Math.max(0, playerCount - 2) * GAME.extraTendersPerPlayer;
+}
+
 export function createGame(names: string[], seed = Math.floor(Math.random() * 2 ** 31)): GameState {
   const s: GameState = {
     seed,
@@ -165,6 +170,7 @@ export function createGame(names: string[], seed = Math.floor(Math.random() * 2 
     market: [],
     tendersDealt: 0,
     tendersPerGame: GAME.tendersPerGame,
+    tendersPerRound: tendersPerRound(names.length),
     bidding: null,
     lastAuctions: [],
     auctions: [],
@@ -196,7 +202,7 @@ function startRoundMut(s: GameState) {
 
   // Unclaimed tenders from last round stay; deal new ones into the empty slots.
   for (const o of s.market) o.age++;
-  while (s.market.length < GAME.tendersPerRound && s.deck.length > 0) {
+  while (s.market.length < s.tendersPerRound && s.deck.length > 0) {
     const t = s.deck.shift()!;
     s.market.push({ tender: t, age: 1 });
     s.tendersDealt++;

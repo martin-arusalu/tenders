@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { activeProjects, bidRange, boardFull, currentBidder, dueRoundIfWon, rankings, rebidTender, workBacklog } from '../game/engine';
+import {
+  activeProjects,
+  bidRange,
+  boardFull,
+  currentBidder,
+  dueRoundIfWon,
+  rankings,
+  rebidTender,
+  workBacklog,
+} from '../game/engine';
 import type { GameState, Player, Project } from '../game/types';
 import { Coin, PLAYER_COLORS, TenderCard } from './Pieces';
 
@@ -9,14 +18,15 @@ export interface BiddingActions {
   revealBids: () => void;
 }
 
-/** Full-screen cover for secret bidding: pass-the-device, or against the AI seat. */
+/** Full-screen cover for secret bidding: pass-the-device, or against the AI seats. */
 export function BiddingOverlay({
   game,
-  aiPlayerId,
+  aiPlayerIds,
   actions,
 }: {
   game: GameState;
-  aiPlayerId: string | null;
+  /** Empty in a pass-the-device game. */
+  aiPlayerIds: string[];
   actions: BiddingActions;
 }) {
   const b = game.bidding!;
@@ -37,26 +47,25 @@ export function BiddingOverlay({
         {rebidBanner}
         <h2>All bids recorded.</h2>
         <p className="big-text">
-          {aiPlayerId ? 'The sealed bids are on the table.' : 'Put the device back in the middle of the table.'}
+          {aiPlayerIds.length ? 'The sealed bids are on the table.' : 'Put the device back in the middle of the table.'}
         </p>
         <button className="primary big" onClick={actions.revealBids}>
           REVEAL BIDS
         </button>
       </>
     );
-  } else if (b.stage === 'handoff' && aiPlayerId) {
+  } else if (b.stage === 'handoff' && aiPlayerIds.length) {
     // Against the AI there is no device to pass: the human's form opens automatically.
-    body =
-      player.id === aiPlayerId ? (
-        <>
-          {rebidBanner}
-          {b.index > 0 && <h2>Bid recorded.</h2>}
-          <p className="big-text">
-            <b style={{ color: colorOf(player.id) }}>{player.name}</b> is {rebidOn ? 'rebidding' : 'choosing a tender'}
-            <span className="dots" />
-          </p>
-        </>
-      ) : null;
+    body = aiPlayerIds.includes(player.id) ? (
+      <>
+        {rebidBanner}
+        {b.index > 0 && <h2>Bid recorded.</h2>}
+        <p className="big-text">
+          <b style={{ color: colorOf(player.id) }}>{player.name}</b> is {rebidOn ? 'rebidding' : 'choosing a tender'}
+          <span className="dots" />
+        </p>
+      </>
+    ) : null;
   } else if (b.stage === 'handoff') {
     body = (
       <>
@@ -101,38 +110,55 @@ function BidEntry({
   const rebidOn = rebidTender(game);
   const choices = rebidOn ? [rebidOn] : game.market.map((o) => o.tender);
   const [pickedId, setPickedId] = useState<string | null>(choices.length === 1 ? choices[0].id : null);
-  const [value, setValue] = useState('');
   const tender = choices.find((t) => t.id === pickedId) ?? null;
   const range = tender ? bidRange(game, tender) : null;
+  /** Starts in the middle of the range whenever a tender is picked. */
+  const [value, setValue] = useState(() => (range ? String(Math.round((range.min + range.max) / 2)) : ''));
   const n = Number(value);
   const valid = !!range && value.trim() !== '' && Number.isInteger(n) && n >= range.min && n <= range.max;
   const color = PLAYER_COLORS[game.players.findIndex((p) => p.id === player.id)];
   const backlog = workBacklog(player);
   const full = boardFull(player);
   const canPass = !rebidOn;
+  const pick = (id: string) => {
+    const t = choices.find((c) => c.id === id)!;
+    const r = bidRange(game, t);
+    setPickedId(id);
+    setValue(String(Math.round((r.min + r.max) / 2)));
+  };
+  const nudge = (d: number) =>
+    range && setValue(String(Math.min(range.max, Math.max(range.min, (valid ? n : range.min) + d))));
 
   return (
-    <>
+    <form
+      className="bid-entry"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valid && tender) onSubmit({ tenderId: tender.id, amount: n });
+      }}
+    >
       <h2 style={{ color }}>
         {player.name}: your secret {rebidOn ? 'rebid' : 'bid'}
       </h2>
       <div className="bidder-status">
-        Money <b>{player.money}</b> · {activeProjects(player).length} cards on your board · backlog <b>{backlog}</b> work (~
-        {Math.ceil(backlog / player.workers)} rounds)
+        Money <b>{player.money}</b> · {activeProjects(player).length} card
+        {activeProjects(player).length === 1 ? '' : 's'} on your board · backlog <b>{backlog}</b> work
+        {backlog > 0 && ` (~${Math.ceil(backlog / player.workers)} rounds)`}
       </div>
+
       {full ? (
         <p className="warn">
           Your board is full ({activeProjects(player).length} projects). Finish one before bidding again.
         </p>
       ) : (
-        <p>
+        <p className="bid-step">
           {choices.length > 1 ? (
             <>
-              <b>Pick one tender</b> to bid on. The lowest bid on each tender wins it.
+              <b>1. Pick one tender.</b> The lowest bid on each tender wins it.
             </>
           ) : (
             <>
-              What price will you do it for? <b>Lowest bid wins.</b>
+              <b>{rebidOn ? 'Tie-break rebid.' : 'One tender on the table.'}</b> Lowest bid wins.
             </>
           )}
         </p>
@@ -144,52 +170,98 @@ function BidEntry({
             tender={t}
             small
             selected={t.id === pickedId}
-            onSelect={full ? undefined : () => setPickedId(t.id)}
+            onSelect={full ? undefined : () => pick(t.id)}
           />
         ))}
       </div>
-      {tender && !full && (
-        <p className="muted small">
-          {tender.name}: if you win it, it's due <b>R{dueRoundIfWon(game.round, tender)}</b>. Bid between {range!.min} and{' '}
-          {range!.max}
-          {rebidOn ? '' : ' (the client’s budget)'}.
-        </p>
+
+      {!full && (
+        <div className={`price-panel ${tender ? '' : 'waiting'}`}>
+          {tender && range ? (
+            <>
+              <p className="bid-step">
+                <b>{choices.length > 1 ? '2. Your price' : 'Your price'}</b> for {tender.name}
+              </p>
+              <div className="stepper">
+                <button
+                  type="button"
+                  className="icon big-icon"
+                  onClick={() => nudge(-1)}
+                  disabled={!valid || n <= range.min}
+                  aria-label="Lower"
+                >
+                  −
+                </button>
+                <input
+                  className="bid-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={range.min}
+                  max={range.max}
+                  step={1}
+                  autoFocus
+                  autoComplete="off"
+                  aria-label="Your bid"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="icon big-icon"
+                  onClick={() => nudge(1)}
+                  disabled={!valid || n >= range.max}
+                  aria-label="Higher"
+                >
+                  +
+                </button>
+              </div>
+              <div className="slider">
+                <input
+                  className="bid-slider"
+                  type="range"
+                  min={range.min}
+                  max={range.max}
+                  step={1}
+                  value={valid ? n : range.min}
+                  onChange={(e) => setValue(e.target.value)}
+                  aria-label="Your bid"
+                />
+                <div className="slider-ends">
+                  <span>{range.min} minimum</span>
+                  <span>
+                    {range.max} {rebidOn ? 'tied bid' : 'client’s budget'}
+                  </span>
+                </div>
+              </div>
+              {!valid && (
+                <p className="warn small">
+                  Enter a whole number from {range.min} to {range.max}.
+                </p>
+              )}
+              <p className="muted small">
+                If you win, it's due by the end of <b>round {dueRoundIfWon(game.round, tender)}</b>. Your crew's wages
+                for {tender.work} work are about <b>{tender.work * player.salaryPerWorker}</b>.
+              </p>
+            </>
+          ) : (
+            <p className="muted">Pick a tender above to set your price.</p>
+          )}
+        </div>
       )}
-      <form
-        className="row gap wrap center"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valid && tender) onSubmit({ tenderId: tender.id, amount: n });
-        }}
-      >
-        {!full && (
-          <>
-            <input
-              className="bid-input"
-              type="number"
-              inputMode="numeric"
-              min={range?.min}
-              max={range?.max}
-              step={1}
-              autoFocus
-              autoComplete="off"
-              placeholder={tender ? 'Bid' : 'Pick a tender'}
-              disabled={!tender}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-            <button type="submit" className="primary big" disabled={!valid}>
-              Confirm bid
-            </button>
-          </>
-        )}
+
+      <div className="bid-actions">
         {canPass && (
           <button type="button" className="big" onClick={() => onSubmit(null)}>
-            Pass
+            Pass this round
           </button>
         )}
-      </form>
-    </>
+        {!full && (
+          <button type="submit" className="primary big" disabled={!valid}>
+            {valid ? `Confirm bid of ${n}` : 'Confirm bid'}
+          </button>
+        )}
+      </div>
+    </form>
   );
 }
 

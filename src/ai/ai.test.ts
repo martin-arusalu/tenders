@@ -53,6 +53,16 @@ describe('estimateTender', () => {
   });
 });
 
+/** Seeded random numbers, so tests of the rules bot's mixing are repeatable. */
+function mulberry(seed: number) {
+  return () => {
+    let t = (seed = (seed + 0x6d2b79f5) | 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Everyone's sealed bid on the first tender on the table (null = pass). */
 function bidFirst(g: GameState, amounts: ((t: Tender) => number | null)[]): GameState {
   const t = g.market[0].tender;
@@ -74,6 +84,20 @@ describe('rules bot (chooseBid)', () => {
     const choice = chooseBid(g, 'P2')!;
     const t = E.offeredTender(g, choice.tenderId)!;
     expect(choice.amount).toBe(E.maxBid(t));
+  });
+
+  it("stays below the client's budget when a rival can bid too", () => {
+    const g = E.createGame(['A', 'B', 'C'], 5);
+    for (let i = 0; i < 20; i++) {
+      const choice = chooseBid(g, 'P2', mulberry(i));
+      if (choice) expect(choice.amount).toBeLessThan(E.maxBid(E.offeredTender(g, choice.tenderId)!));
+    }
+  });
+
+  it('varies its bid, so two bots with the same view rarely match', () => {
+    const g = E.createGame(['A', 'B', 'C'], 5);
+    const picks = new Set(Array.from({ length: 20 }, (_, i) => JSON.stringify(chooseBid(g, 'P2', mulberry(i)))));
+    expect(picks.size).toBeGreaterThan(3);
   });
 
   it('bids on a tender that is on the table, within its range', () => {
@@ -99,7 +123,7 @@ describe('buildView', () => {
     expect(JSON.stringify(view)).not.toContain(`:${secret},`);
     expect(JSON.stringify(view)).not.toContain(`:${secret}}`);
     expect(view.me.name).toBe('Bot');
-    expect(view.opponent.name).toBe('Human');
+    expect(view.opponents.map((o) => o.name)).toEqual(['Human']);
     expect(view.market.map((m) => m.id)).toEqual(g.market.map((o) => o.tender.id));
   });
 
@@ -109,8 +133,36 @@ describe('buildView', () => {
     g = bidFirst(g, [() => bid, () => null]);
     g = E.nextRound(E.resolveRound(E.proceedToAllocation(g)));
     const view = buildView(g, 'P2');
-    expect(view.history).toEqual([expect.objectContaining({ myBid: null, opponentBid: bid, winner: 'opponent' })]);
-    expect(view.opponent.contracts).toHaveLength(1);
+    expect(view.history).toEqual([expect.objectContaining({ myBid: null, opponentBids: [{ name: 'Human', bid }], winner: 'Human' })]);
+    expect(view.opponents[0].contracts).toHaveLength(1);
+  });
+});
+
+describe('three players', () => {
+  it('deals one tender per player', () => {
+    const g = E.createGame(['You', 'AI 1', 'AI 2'], 1);
+    expect(g.market).toHaveLength(E.tendersPerRound(3));
+    expect(E.tendersPerRound(3)).toBe(GAME.tendersPerRound + GAME.extraTendersPerPlayer);
+  });
+
+  it('shows each AI both opponents, and names who won', () => {
+    let g = E.createGame(['You', 'AI 1', 'AI 2'], 7);
+    const bid = E.minBid(g.market[0].tender) + 9;
+    g = bidFirst(g, [() => bid, () => bid + 1, () => null]);
+    g = E.nextRound(E.resolveRound(E.proceedToAllocation(g)));
+    const view = buildView(g, 'P3');
+    expect(view.opponents.map((o) => o.name)).toEqual(['You', 'AI 1']);
+    expect(view.history).toEqual([
+      expect.objectContaining({ myBid: null, opponentBids: [{ name: 'You', bid }, { name: 'AI 1', bid: bid + 1 }], winner: 'You' }),
+    ]);
+  });
+
+  it('plays complete games with three rules bots', () => {
+    for (const seed of [1, 2, 3]) {
+      const g = playHeadless(seed, [STRATEGIES.rules, STRATEGIES.rules, STRATEGIES.rules]).final;
+      expect(g.phase).toBe('gameOver');
+      expect(g.players).toHaveLength(3);
+    }
   });
 });
 

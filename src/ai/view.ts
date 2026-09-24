@@ -11,7 +11,8 @@ import type { AiView } from './types';
 export function buildView(game: GameState, playerId: string): AiView {
   if (game.market.length === 0) throw new Error('No tenders to bid on');
   const me = game.players.find((p) => p.id === playerId)!;
-  const opp = game.players.find((p) => p.id !== playerId)!;
+  const opps = game.players.filter((p) => p.id !== playerId);
+  const nameOf = (id: string | null) => game.players.find((p) => p.id === id)?.name ?? '';
   const suggestion = chooseBid(game, playerId);
 
   return {
@@ -57,7 +58,7 @@ export function buildView(game: GameState, playerId: string): AiView {
         lostAfterRound: lastPayingRound(pr),
       })),
     },
-    opponent: {
+    opponents: opps.map((opp) => ({
       name: opp.name,
       money: opp.money,
       workers: opp.workers,
@@ -69,14 +70,14 @@ export function buildView(game: GameState, playerId: string): AiView {
         payout: pr.payout,
         dueRound: pr.dueRound,
       })),
-    },
+    })),
     history: game.auctions.map((a) => ({
       round: a.round,
       tender: a.tender.name,
       work: a.tender.work,
       myBid: a.bids.find((b) => b.playerId === me.id)?.amount ?? null,
-      opponentBid: a.bids.find((b) => b.playerId === opp.id)?.amount ?? null,
-      winner: a.winnerId === me.id ? 'me' : 'opponent',
+      opponentBids: a.bids.filter((b) => b.playerId !== me.id).map((b) => ({ name: nameOf(b.playerId), bid: b.amount! })),
+      winner: a.winnerId === me.id ? 'me' : nameOf(a.winnerId),
     })),
     suggestion: suggestion && { tenderId: suggestion.tenderId, bid: suggestion.amount, why: suggestion.why },
   };

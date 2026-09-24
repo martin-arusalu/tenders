@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { GAME } from '../config';
+import { AI, GAME } from '../config';
+import { tendersPerRound } from '../game/engine';
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
 
@@ -13,7 +14,13 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
 
   const g = GAME;
   const wages = g.startingWorkers * g.salaryPerWorker;
-  const rounds = Math.ceil(g.tendersPerGame / g.tendersPerRound);
+  const maxPlayers = AI.maxOpponents + 1;
+  const perRound = tendersPerRound(2);
+  const perRoundMax = tendersPerRound(maxPlayers);
+  // "2 (3 with 3 players)": tenders on the table grow with the table.
+  const perRoundText = perRoundMax === perRound ? `${perRound}` : `${perRound} (${perRoundMax} with ${maxPlayers} players)`;
+  const rounds = Math.ceil(g.tendersPerGame / perRound);
+  const roundsMax = Math.ceil(g.tendersPerGame / perRoundMax);
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -49,8 +56,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             </li>
           </ul>
           <p>
-            The deck holds {g.tendersPerGame} tenders, and {g.tendersPerRound} go on the table each round, so the bidding
-            lasts about {rounds} rounds. After that you keep playing until every contract is finished.
+            The deck holds {g.tendersPerGame} tenders, and {perRoundText} go on the table each round, so the bidding
+            lasts about {rounds === roundsMax ? rounds : `${roundsMax} to ${rounds}`} rounds. After that you keep playing until every contract is finished.
           </p>
         </section>
 
@@ -58,7 +65,7 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <h3>A round</h3>
           <ol>
             <li>
-              <b>Tenders.</b> {g.tendersPerRound} tenders are on the table. Each shows the estimated work, how many rounds
+              <b>Tenders.</b> {perRoundText} tenders are on the table. Each shows the estimated work, how many rounds
               you have to finish it, and the penalty for every round it runs late.
             </li>
             <li>
@@ -87,9 +94,9 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
               client's budget). Each card shows its range.
             </li>
             <li>
-              If you and your opponent pick <b>different tenders</b>, you both win yours at whatever you bid. If you pick
-              the <b>same one</b>, the cheaper bid gets it and the other player gets nothing this round. Reading which
-              tender your opponent wants is the heart of the game.
+              If you're <b>alone on a tender</b>, you win it at whatever you bid. If others pick the <b>same one</b>, the
+              cheapest bid gets it and the others get nothing this round. Reading which tender each opponent wants is the
+              heart of the game.
             </li>
             <li>
               <b>Ties:</b> the tied player with fewer contracts on their board wins. If that's equal too, the tied
@@ -103,7 +110,7 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             </li>
             {g.maxActiveProjects !== null && (
               <li>
-                With a <b>full board</b> ({g.maxActiveProjects} contracts) you can't bid. Your opponent can see that, and
+                With a <b>full board</b> ({g.maxActiveProjects} contracts) you can't bid. Your opponents can see that, and
                 may charge the full budget.
               </li>
             )}
@@ -174,7 +181,7 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             {g.closeShopWhenDone && (
               <li>
                 Once there are no tenders left and your board is empty, you close shop and stop paying wages while the
-                other player finishes up.
+                others finish up.
               </li>
             )}
           </ul>
@@ -183,8 +190,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
         <section>
           <h3>Tips</h3>
           <ul>
-            <li>Look at your opponent's board before bidding. A busy opponent can't take a big or urgent job.</li>
-            <li>A tender nobody else wants can go for close to the full budget. One you both want is a price war.</li>
+            <li>Look at your opponents' boards before bidding. A busy opponent can't take a big or urgent job.</li>
+            <li>A tender nobody else wants can go for close to the full budget. One that others want too is a price war.</li>
             <li>Idle workers cost money, but so do late penalties and freelancers. Don't take more than your crew can finish.</li>
           </ul>
         </section>

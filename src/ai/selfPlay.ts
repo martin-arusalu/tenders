@@ -34,13 +34,13 @@ function marketRate(g: GameState, id: string): number | null {
 
 export const STRATEGIES: Record<string, Strategy> = {
   rules: {
-    label: 'Rules bot, the AI fallback: predicts your pick, charges the budget on the other tender, undercuts on a shared one',
-    bid: (g, id) => chooseBid(g, id),
+    label: 'Rules bot, the AI fallback: best expected profit given who might bid, with some randomness',
+    bid: (g, id, rng) => chooseBid(g, id, rng),
   },
   mixed: {
     label: "Rules bot, but 30% of the time takes the tender it didn't pick, at budget (unpredictable)",
     bid: (g, id, rng) => {
-      const pick = chooseBid(g, id);
+      const pick = chooseBid(g, id, rng);
       const other = g.market.find((o) => o.tender.id !== pick?.tenderId)?.tender;
       if (pick && other && rng() < 0.3 && affordable(g, id, other) && cost(g, id, other) <= E.maxBid(other)) {
         return { tenderId: other.id, amount: E.maxBid(other) };

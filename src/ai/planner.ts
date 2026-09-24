@@ -168,39 +168,85 @@ export interface BidChoice {
 
 /**
  * The rules bot (the AI's fallback, and its suggestion to the LLM): reads the table.
- * It predicts which tender each opponent wants most. A tender nobody else is after goes at the
- * client's full budget; a contested one just under what the rival has recently been charging
- * (or their cost), never below our own cost. It picks the best expected margin per unit of work.
+ *
+ * The client's full budget only wins when nobody else bids on that tender (or everyone else bids
+ * the full budget too, a tie). So for each tender it estimates how likely each rival is to go for
+ * it and at what price, and picks the price with the best expected profit: win chance × margin.
+ * A rival we expect to want the tender bids somewhere between its cost and the budget; one we
+ * don't expect still might (AI.rivalSurpriseChance).
+ *
+ * Then it mixes: the tender is drawn in proportion to expected profit, and the price from the
+ * near-best ones. Two bots with the same view would otherwise make the same choice every round
+ * and always collide, and a human could learn to predict it.
  */
-export function chooseBid(game: GameState, playerId: string): BidChoice | null {
+export function chooseBid(game: GameState, playerId: string, rng: () => number = Math.random): BidChoice | null {
   const me = game.players.find((x) => x.id === playerId)!;
   if (boardFull(me)) return null;
   const onOffer = game.market.map((o) => o.tender);
   const rivals = game.players
     .filter((x) => x.id !== playerId && !boardFull(x))
     .map((x) => ({ id: x.id, wants: bestFit(game, x.id, onOffer)?.id }));
-  let best: (BidChoice & { ev: number }) | null = null;
+  /** Each rival's recent price per work: we expect about that again, give or take half a unit. */
+  const rates = new Map(rivals.map((r) => [r.id, recentRate(game, [r.id])]));
+
+  const options: (BidChoice & { ev: number; prices: { amount: number; ev: number }[] })[] = [];
   for (const t of onOffer) {
     if (!affordable(game, playerId, t)) continue;
     const mine = estimateTender(game, playerId, t).fullCost;
     if (mine > maxBid(t)) continue;
-    const contest = rivals.filter((r) => r.wants === t.id);
-    let option: BidChoice & { ev: number };
-    if (contest.length === 0) {
-      option = { tenderId: t.id, amount: maxBid(t), why: 'nobody else wants it', ev: (maxBid(t) - mine) / t.work };
-    } else {
-      // Undercut what the rival has actually been charging; if they haven't bid yet, their cost.
-      // Either way never below our own cost, and never at the full budget (they might bid it too).
-      const theirCost = Math.min(...contest.map((r) => estimateTender(game, r.id, t).fullCost));
-      const rate = recentRate(game, contest.map((r) => r.id));
-      const target = rate === null ? theirCost - 1 : Math.max(theirCost, rate * t.work) - 1;
-      const amount = clampBid(t, Math.max(mine, Math.min(target, maxBid(t) - 1)));
-      const pWin = amount < theirCost ? 0.9 : 0.5;
-      option = { tenderId: t.id, amount, why: 'contested, priced to undercut', ev: (pWin * (amount - mine)) / t.work };
+    if (rivals.length === 0) {
+      // Nobody else can bid this round: the full budget is a sure win.
+      const ev = maxBid(t) - mine;
+      if (ev > 0) options.push({ tenderId: t.id, amount: maxBid(t), why: 'nobody else can bid', ev, prices: [{ amount: maxBid(t), ev }] });
+      continue;
     }
-    if (option.ev > 0 && (!best || option.ev > best.ev)) best = option;
+    // Each rival: the chance it bids on t, and the price range it's likely to bid in. Before it has
+    // bid at all, anything from its cost to the budget; after, around its own recent price.
+    const threats = rivals.map((r) => {
+      const cost = estimateTender(game, r.id, t).fullCost;
+      const rate = rates.get(r.id);
+      const lo = clampBid(t, rate == null ? cost : Math.min(cost, Math.floor((rate - 0.5) * t.work)));
+      const hi = Math.max(lo, rate == null ? maxBid(t) : clampBid(t, Math.ceil((rate + 0.5) * t.work)));
+      const p = r.wants === t.id ? 1 - AI.rivalSurpriseChance : AI.rivalSurpriseChance / Math.max(1, onOffer.length - 1);
+      return { p, lo, hi };
+    });
+    const prices: { amount: number; ev: number }[] = [];
+    // Never the full budget while a rival can bid: it only wins if nobody else bids on this tender,
+    // and one below it wins every such case too, plus any where a rival also bids the budget.
+    for (let amount = Math.max(minBid(t), mine); amount < maxBid(t); amount++) {
+      // A rival's price is spread evenly over its range; a tie counts as half a win.
+      const pWin = threats.reduce((acc, { p, lo, hi }) => {
+        const span = hi - lo + 1;
+        const below = Math.min(span, Math.max(0, amount - lo)) / span;
+        const equal = amount >= lo && amount <= hi ? 1 / span : 0;
+        return acc * (1 - p * (below + equal / 2));
+      }, 1);
+      prices.push({ amount, ev: pWin * (amount - mine) });
+    }
+    const top = prices.reduce((a, b) => (b.ev > a.ev ? b : a), prices[0]);
+    if (top && top.ev > 0) {
+      const contested = threats.some((x) => x.p >= 0.5);
+      options.push({ tenderId: t.id, amount: top.amount, why: contested ? 'contested, priced to undercut' : 'probably ours, but others might bid', ev: top.ev, prices });
+    }
   }
-  return best && { tenderId: best.tenderId, amount: best.amount, why: best.why };
+  if (options.length === 0) return null;
+
+  // Mix: a tender in proportion to expected profit, then any price close to its best.
+  const pick = weighted(options, (o) => o.ev, rng);
+  const good = pick.prices.filter((x) => x.ev >= pick.ev * AI.priceSpread);
+  const amount = weighted(good, (x) => x.ev, rng).amount;
+  return { tenderId: pick.tenderId, amount, why: pick.why };
+}
+
+/** Draw one item with probability proportional to weight. */
+function weighted<T>(items: T[], weight: (x: T) => number, rng: () => number): T {
+  const total = items.reduce((s, x) => s + Math.max(0, weight(x)), 0);
+  let r = rng() * total;
+  for (const x of items) {
+    r -= Math.max(0, weight(x));
+    if (r < 0) return x;
+  }
+  return items[items.length - 1];
 }
 
 /** Average price per unit of work these players bid over their last few auctions, or null if none yet. */

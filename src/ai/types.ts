@@ -58,24 +58,27 @@ export interface AiView {
       lostAfterRound: number;
     }[];
   };
-  opponent: {
+  /** Everyone else at the table. */
+  opponents: {
     name: string;
     money: number;
     workers: number;
     freelancers: number;
-    /** A full board can't bid: if true, you're the only bidder this round. */
+    /** A full board can't bid: that opponent sits this round out. */
     boardFull: boolean;
     /** Contracts they won that are still on their board. Progress is hidden. */
     contracts: { name: string; work: number; payout: number; dueRound: number }[];
-  };
-  /** Past auctions with the bids revealed. null = bid on the other tender or passed. */
+  }[];
+  /** Past auctions with the bids revealed. Players who bid on another tender or passed aren't listed. */
   history: {
     round: number;
     tender: string;
     work: number;
+    /** null = bid on another tender or passed. */
     myBid: number | null;
-    opponentBid: number | null;
-    winner: 'me' | 'opponent';
+    opponentBids: { name: string; bid: number }[];
+    /** 'me', or the winning opponent's name. */
+    winner: string;
   }[];
   /** What the rule-based bot would do: its tender and bid, or null to pass. */
   suggestion: { tenderId: string; bid: number; why: string } | null;

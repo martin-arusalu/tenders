@@ -3,6 +3,13 @@ import { openAiBid } from './openai';
 import { parseBidDecision } from './prompt';
 import type { AiView, BidAdvisor, BidDecision } from './types';
 
+/** The rules bot's line at the reveal, by its reason (see chooseBid). */
+const RULES_LINES: Record<string, (tender: string) => string> = {
+  'nobody else can bid': (t) => `Nobody else could bid on ${t}. Full price.`,
+  'probably ours, but others might bid': (t) => `${t} suits us. Priced so nobody sneaks in under us.`,
+  'contested, priced to undercut': (t) => `We want ${t} too. Let's see who's sharper.`,
+};
+
 /** Follows the planner's suggestion. Works offline, used as the fallback. */
 export const rulesAdvisor: BidAdvisor = {
   async decideBid(view) {
@@ -12,7 +19,7 @@ export const rulesAdvisor: BidAdvisor = {
     return {
       tenderId: s.tenderId,
       bid: s.bid,
-      reasoning: s.why === 'nobody else wants it' ? `${name} suits us. Full price.` : `We want ${name} too. Let's see who's sharper.`,
+      reasoning: RULES_LINES[s.why]?.(name) ?? `${name} for ${s.bid}.`,
       source: 'rules',
     };
   },
