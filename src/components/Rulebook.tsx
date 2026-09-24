@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { AI, GAME } from '../config';
-import { tendersPerRound } from '../game/engine';
+import { minBid, tendersPerRound } from '../game/engine';
 
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
 
@@ -14,6 +14,7 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
 
   const g = GAME;
   const wages = g.startingWorkers * g.salaryPerWorker;
+  const minBidText = `${g.minBidPerWork} × work${g.minBidOffset < 0 ? ` − ${-g.minBidOffset}` : g.minBidOffset > 0 ? ` + ${g.minBidOffset}` : ''}`;
   const maxPlayers = AI.maxOpponents + 1;
   const perRound = tendersPerRound(2);
   const perRoundMax = tendersPerRound(maxPlayers);
@@ -117,8 +118,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <h3>Bidding</h3>
           <ul>
             <li>
-              A bid must be between <b>{g.minBidPerWork} × work</b> (the minimum, rounded up) and{' '}
-              <b>{g.maxBidPerWork} × work</b> (the client's budget). Each card shows its range.
+              A bid must be between <b>{minBidText}</b> (the minimum) and <b>{g.maxBidPerWork} × work</b> (the client's
+              budget). Each card shows its range.
             </li>
             <li>
               If you're <b>alone on a tender</b>, you win it at whatever you bid. If others pick the <b>same one</b>,
@@ -234,6 +235,12 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             <li>
               A tender others want too is a price war. Your crew's wages for the work are roughly your break-even price.
             </li>
+            {minBid({ id: '', name: '', work: 5, deadline: 1, penalty: 1 }) < 5 * g.salaryPerWorker && (
+              <li>
+                The minimum bid is just under your crew's wages for the job. Bidding it loses you a little, but keeps the
+                work away from a rival. Do it too often and you'll go broke.
+              </li>
+            )}
             <li>
               Don't be predictable. If you always take the obvious tender at the same price, others learn to undercut
               you.

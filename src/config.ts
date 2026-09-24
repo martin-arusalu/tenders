@@ -42,12 +42,15 @@ export const GAME = {
   freelancerSalary: 3,
 
   /**
-   * Reserve price: a bid must be at least work × this. Stops a player from winning
-   * everything at a loss just to starve the other one.
-   * BALANCE: two good players undercut each other down to this, so it's effectively the going
-   * rate: at the base salary (2) nobody profits; 2.5 leaves a thin margin.
+   * Reserve price: a bid must be at least work × minBidPerWork + minBidOffset (rounded up first).
+   * At 2 × work − 1 a player can win a job for 1 less than its base wages: a small, deliberate loss
+   * to keep work away from the others. Much lower and a player could starve the others cheaply.
+   * BALANCE (sims): always bidding the minimum loses every 2-player game and ends near 50 money;
+   * "block when a rival wants it" wins 42% against two rules bots (57% when the minimum was
+   * 2.5 × work, since blocking then cost nothing).
    */
-  minBidPerWork: 2.5,
+  minBidPerWork: 2,
+  minBidOffset: -1,
 
   /**
    * The client's budget: a bid can be at most work × this. Without it, a player whose opponent

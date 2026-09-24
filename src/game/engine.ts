@@ -24,7 +24,7 @@ export function dueRoundIfWon(round: number, t: Tender): number {
 
 /** Reserve price for a tender. */
 export function minBid(t: Tender): number {
-  return Math.ceil(t.work * GAME.minBidPerWork);
+  return Math.max(1, Math.ceil(t.work * GAME.minBidPerWork) + GAME.minBidOffset);
 }
 
 /** The client's budget for a tender: the highest bid allowed. */

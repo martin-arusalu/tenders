@@ -178,6 +178,14 @@ describe('playOut (skip to the end)', () => {
   });
 });
 
+describe('lowballing', () => {
+  it('allows a bid just under the base wages for the work, but no lower', () => {
+    const t = { id: 'x', name: 'x', work: 5, deadline: 2, penalty: 2 };
+    expect(E.minBid(t)).toBe(Math.ceil(5 * GAME.minBidPerWork) + GAME.minBidOffset);
+    expect(E.minBid(t)).toBeLessThan(5 * GAME.salaryPerWorker);
+  });
+});
+
 describe('parseBidDecision', () => {
   it('accepts a bid on a tender, or a pass', () => {
     expect(parseBidDecision({ tenderId: 'T1', bid: 7.4, reasoning: 'ok' }, 'x')).toEqual({

@@ -72,6 +72,16 @@ export const STRATEGIES: Record<string, Strategy> = {
       return STRATEGIES.budget.bid(g, id, rng);
     },
   },
+  blocker: {
+    label: 'Rules bot, but on a tender a rival wants it bids the minimum (takes a small loss to deny them work)',
+    bid: (g, id, rng) => {
+      const pick = chooseBid(g, id, rng);
+      if (!pick) return null;
+      const t = E.offeredTender(g, pick.tenderId)!;
+      const rivalWants = g.players.some((p) => p.id !== id && E.inGame(p) && !E.boardFull(p) && bestFit(g, p.id, g.market.map((o) => o.tender))?.id === t.id);
+      return rivalWants ? { tenderId: t.id, amount: E.minBid(t) } : pick;
+    },
+  },
   hoarder: {
     label: 'Best fit, always the minimum bid',
     bid: onBestFit((_, __, t) => E.minBid(t)),

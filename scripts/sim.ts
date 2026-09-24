@@ -103,7 +103,7 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 console.log(
   `Config: ${GAME.tendersPerGame} tenders, ${GAME.tendersPerRound} per round, start ${GAME.startingMoney}, crew ${GAME.startingWorkers}×${GAME.salaryPerWorker}, ` +
-    `freelancers ≤${GAME.maxFreelancers}×${GAME.freelancerSalary}, bids ${GAME.minBidPerWork}–${GAME.maxBidPerWork}/work, ` +
+    `freelancers ≤${GAME.maxFreelancers}×${GAME.freelancerSalary}, bids ${GAME.minBidPerWork}×work${GAME.minBidOffset ? `${GAME.minBidOffset > 0 ? '+' : ''}${GAME.minBidOffset}` : ''} to ${GAME.maxBidPerWork}×work, ` +
     `max ${GAME.maxActiveProjects ?? '∞'} projects, avg work ${avg(TENDER_DECK.map((t) => t.work)).toFixed(1)}. ${games} games per matchup.\n`,
 );
 
