@@ -18,13 +18,20 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
   const perRound = tendersPerRound(2);
   const perRoundMax = tendersPerRound(maxPlayers);
   // "2 (3 with 3 players)": tenders on the table grow with the table.
-  const perRoundText = perRoundMax === perRound ? `${perRound}` : `${perRound} (${perRoundMax} with ${maxPlayers} players)`;
+  const perRoundText =
+    perRoundMax === perRound ? `${perRound}` : `${perRound} (${perRoundMax} with ${maxPlayers} players)`;
   const rounds = Math.ceil(g.tendersPerGame / perRound);
   const roundsMax = Math.ceil(g.tendersPerGame / perRoundMax);
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="overlay-box rulebook" role="dialog" aria-modal="true" aria-labelledby="rules-title" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="overlay-box rulebook"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rules-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="rulebook-head">
           <h2 id="rules-title">How to play Tenders</h2>
           <button onClick={onClose} autoFocus>
@@ -42,22 +49,39 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
         </section>
 
         <section>
+          <h3>Players</h3>
+          <ul>
+            <li>
+              <b>2 to {maxPlayers} players.</b> In the app you can play against{' '}
+              {AI.maxOpponents === 1 ? 'an AI opponent' : `1 ${AI.maxOpponents === 2 ? 'or' : 'to'} ${AI.maxOpponents} AI opponents`}, or with 2 people
+              passing one device.
+            </li>
+            <li>
+              The AI opponents see only what a player in their seat could see: never your secret bid. They bid with
+              built-in rules, or with an OpenAI model if you add your own API key on the start screen.
+            </li>
+          </ul>
+        </section>
+
+        <section>
           <h3>What you start with</h3>
           <ul>
             <li>
               <b>{g.startingMoney} money.</b>
             </li>
             <li>
-              <b>A crew of {g.startingWorkers} workers</b>, paid {g.salaryPerWorker} each every round whether they work or
-              not: {wages} per round.
+              <b>A crew of {g.startingWorkers} workers</b>, paid {g.salaryPerWorker} each every round whether they work
+              or not: <b>{wages} per round</b>.
             </li>
             <li>
-              <b>A workboard</b> with room for {g.maxActiveProjects ?? 'any number of'} contracts at a time.
+              <b>A workboard</b> with {g.maxActiveProjects ?? 'unlimited'} rows (one contract per row) and{' '}
+              {g.boardSpaces} spaces per row.
             </li>
           </ul>
           <p>
             The deck holds {g.tendersPerGame} tenders, and {perRoundText} go on the table each round, so the bidding
-            lasts about {rounds === roundsMax ? rounds : `${roundsMax} to ${rounds}`} rounds. After that you keep playing until every contract is finished.
+            lasts about {rounds === roundsMax ? rounds : `${roundsMax} to ${rounds}`} rounds. After that you keep
+            playing until every contract is finished.
           </p>
         </section>
 
@@ -69,7 +93,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
               you have to finish it, and the penalty for every round it runs late.
             </li>
             <li>
-              <b>Secret bids.</b> Everyone picks <b>at most one</b> tender and writes down a price, or passes.
+              <b>Secret bids.</b> Everyone picks <b>at most one</b> tender and names a price, or passes. At the table,
+              write it down; in the app, pick a card and set your price.
             </li>
             <li>
               <b>Reveal.</b> On each tender, the <b>lowest bid wins</b>, and that bid is what the contract pays when you
@@ -80,8 +105,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
               round.
             </li>
             <li>
-              <b>Work &amp; wages.</b> The work is done and everyone pays wages. Finished contracts are completed for their
-              pay.
+              <b>Work &amp; wages.</b> The work is done and everyone pays wages ({wages}, plus {g.freelancerSalary} for
+              each freelancer). Finished contracts are completed for their pay.
             </li>
           </ol>
         </section>
@@ -90,18 +115,18 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <h3>Bidding</h3>
           <ul>
             <li>
-              A bid must be between <b>{g.minBidPerWork} × work</b> (the minimum) and <b>{g.maxBidPerWork} × work</b> (the
-              client's budget). Each card shows its range.
+              A bid must be between <b>{g.minBidPerWork} × work</b> (the minimum, rounded up) and{' '}
+              <b>{g.maxBidPerWork} × work</b> (the client's budget). Each card shows its range.
             </li>
             <li>
-              If you're <b>alone on a tender</b>, you win it at whatever you bid. If others pick the <b>same one</b>, the
-              cheapest bid gets it and the others get nothing this round. Reading which tender each opponent wants is the
-              heart of the game.
+              If you're <b>alone on a tender</b>, you win it at whatever you bid. If others pick the <b>same one</b>,
+              the cheapest bid gets it and the others get nothing this round. Reading which tender each opponent wants
+              is the heart of the game.
             </li>
             <li>
               <b>Ties:</b> the tied player with fewer contracts on their board wins. If that's equal too, the tied
-              players bid again, secretly, at or below the tied price, until one goes lower. If nobody can go lower (tied
-              at the minimum, or after {g.maxRebids} rebids), a coin flip decides.
+              players bid again, secretly, at or below the tied price, until one goes lower. If nobody can go lower
+              (tied at the minimum, or after {g.maxRebids} rebids), a coin flip decides.
             </li>
             <li>
               A tender nobody bids on stays on the table for {g.marketStayRounds - 1} more round
@@ -110,8 +135,8 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             </li>
             {g.maxActiveProjects !== null && (
               <li>
-                With a <b>full board</b> ({g.maxActiveProjects} contracts) you can't bid. Your opponents can see that, and
-                may charge the full budget.
+                With a <b>full board</b> ({g.maxActiveProjects} contracts) you can't bid. Your opponents can see that,
+                and may charge the full budget.
               </li>
             )}
           </ul>
@@ -174,8 +199,9 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
             </li>
             {g.bankruptBelow !== null && (
               <li>
-                If your money is <b>below {g.bankruptBelow}</b> at the end of a round, you're <b>bankrupt</b>: you lose and
-                the game ends. Pay only comes when a job is finished, so watch your cash while you take on work.
+                If your money is <b>below {g.bankruptBelow}</b> at the end of a round, you're <b>bankrupt</b>: you lose
+                and the game ends right away. With {maxPlayers} players, the others are ranked by their money at that
+                point. Pay only comes when a job is finished, so watch your cash while you take on work.
               </li>
             )}
             {g.closeShopWhenDone && (
@@ -191,8 +217,21 @@ export function Rulebook({ onClose }: { onClose: () => void }) {
           <h3>Tips</h3>
           <ul>
             <li>Look at your opponents' boards before bidding. A busy opponent can't take a big or urgent job.</li>
-            <li>A tender nobody else wants can go for close to the full budget. One that others want too is a price war.</li>
-            <li>Idle workers cost money, but so do late penalties and freelancers. Don't take more than your crew can finish.</li>
+            <li>
+              The full budget only wins if <b>nobody else bids on that tender</b> (or everyone else bids the full budget
+              too, and it's a tie). If anyone else might go for it, one lower is safer.
+            </li>
+            <li>
+              A tender others want too is a price war. Your crew's wages for the work are roughly your break-even price.
+            </li>
+            <li>
+              Don't be predictable. If you always take the obvious tender at the same price, others learn to undercut
+              you.
+            </li>
+            <li>
+              Idle workers cost money, but so do late penalties and freelancers. Don't take more than your crew can
+              finish.
+            </li>
           </ul>
         </section>
 
